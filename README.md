@@ -55,7 +55,7 @@ Nama ini muncul di tab browser dan berpengaruh pada SEO.
 
 ---
 
-2.2 Mengganti Teks Kredit dan Hak Cipta (Footer)
+###2.2 Mengganti Teks Kredit dan Hak Cipta (Footer)
 
 1. Buka index.html atau footer.html.
 
@@ -79,7 +79,7 @@ Nama ini muncul di tab browser dan berpengaruh pada SEO.
 
 ---
 
-2.3 Mengganti Deskripsi Meta untuk SEO
+###2.3 Mengganti Deskripsi Meta untuk SEO
 
 1. Buka index.html.
 
@@ -99,7 +99,7 @@ Nama ini muncul di tab browser dan berpengaruh pada SEO.
 
 ---
 
-2.4 Mengubah Tautan Media Sosial atau Kontak
+###2.4 Mengubah Tautan Media Sosial atau Kontak
 
 Contoh sebelum:
 
@@ -116,7 +116,7 @@ Contoh sesudah:
 
 ---
 
-3. Catatan Penting
+##3. Catatan Penting
 
 Backup sebelum mengedit: Selalu buat salinan proyek Anda.
 
