@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FINPRO - CATATAN KEUANGAN HARIAN</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <!-- CDN untuk PDF: jsPDF & html2canvas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html22canvas/1.4.1/html2canvas.js"></script>
+
+    <style>
+        :root {
+            --primary-gray: #374151; /* Gray-700 */
+            --success-green: #10B981;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb;
+            color: var(--primary-gray);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .touch-area-48 {
+            min-height: 48px;
+            min-width: 48px;
+        }
+
+        /* Styling Tombol Ekspor */
+        .export-btn {
+            padding: 0.75rem 1rem;
+            border-radius: 0.75rem; /* Lebih membulat */
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            font-weight: 700; /* Lebih tebal */
+            font-size: 0.875rem;
+            width: 100%; /* Penting: Ambil lebar penuh di mobile */
+        }
+        #exportMonthlyPdfBtn {
+            background-color: var(--primary-gray);
+            color: white;
+        }
+        #exportMonthlyPdfBtn:hover {
+            background-color: #1F2937;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+        }
+        #exportDailyPdfBtn {
+            /* Warna yang sangat kontras untuk menjamin visibilitas */
+            background-color: #F59E0B; /* Amber-500 */
+            color: #78350F; /* Amber-900 - Teks Coklat Gelap */
+        }
+        #exportDailyPdfBtn:hover {
+            background-color: #D97706; /* Amber-600 */
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        .fade-in {
+            opacity: 0;
+            animation: fadeIn 0.6s ease-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in:nth-child(1) { animation-delay: 0.1s; }
+        .fade-in:nth-child(2) { animation-delay: 0.2s; }
+        
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: opacity 0.3s;
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #3B82F6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="flex flex-col">
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <p class="ml-4 text-lg font-medium text-gray-700">Memuat data...</p>
+    </div>
+
+    <!-- Name Input Modal (New Feature) -->
+    <div id="nameInputModal" class="fixed inset-0 bg-gray-900 bg-opacity-70 z-[1001] flex items-center justify-center p-4 hidden">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl text-center max-w-sm w-full transform transition-all duration-300 scale-100 opacity-100">
+            <h3 class="text-2xl font-bold text-gray-800 mb-4">Selamat Datang di FinPro!</h3>
+            <p class="text-gray-600 mb-4">Siapakah nama Anda? Kami akan menggunakannya sebagai ID Pengguna yang lebih ramah!</p>
+            <input type="text" id="nameInput" placeholder="Masukkan nama Anda..."
+                   class="w-full border-2 border-gray-300 rounded-xl p-3 focus:ring-blue-500 focus:border-blue-500 text-lg mb-4">
+            <button id="saveNameBtn" disabled
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-xl p-3 touch-area-48 transition duration-200 shadow-lg disabled:bg-gray-400">
+                Mulai Mencatat
+            </button>
+        </div>
+    </div>
+
+
+    <!-- Header & Navigation (UPDATED TITLE) -->
+    <header class="bg-white shadow-md sticky top-0 z-10">
+        <div class="max-w-6xl mx-auto p-4 flex justify-between items-center">
+            <h1 class="text-xl sm:text-2xl font-bold text-gray-800 tracking-tight">
+                <span class="text-blue-600">FinPro -</span> Catatan Keuangan Harian
+            </h1>
+            <div class="text-right text-xs sm:text-sm font-medium text-gray-600">
+                <p><span id="currentMonthDisplay"></span></p>
+                <!-- Display Nama Pengguna/ID -->
+                <p class="text-blue-500 mt-1 font-semibold">
+                    Selamat datang, <span id="userIdDisplay" class="font-bold text-base text-gray-800">Memuat...</span>
+                </p>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-grow max-w-6xl mx-auto w-full p-4 sm:p-6 lg:p-8">
+
+        <!-- Pengaturan Anggaran -->
+        <section id="budget-settings" class="mb-8 fade-in" style="animation-delay: 0s;">
+            <div class="bg-white p-6 rounded-2xl shadow-xl border-t-4 border-yellow-500 mb-6">
+                <h2 class="text-xl font-bold text-gray-800 mb-3 flex items-center">
+                    <!-- ICON: Target/Goal -->
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 mr-2 text-yellow-600"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                    Anggaran Target Bulanan (IDR)
+                </h2>
+                <form id="budgetForm" class="flex flex-col sm:flex-row gap-3 sm:gap-4 items-center">
+                    <div class="flex-grow w-full">
+                        <input type="number" id="targetBudgetInput" name="targetBudgetInput" step="1000" required 
+                               placeholder="Cth: 35000000" 
+                               class="w-full border-2 border-gray-300 rounded-xl p-3 focus:ring-yellow-500 focus:border-yellow-500 text-lg">
+                    </div>
+                    <button type="submit" id="saveBudgetBtn" disabled
+                            class="w-full sm:w-auto bg-yellow-600 hover:bg-yellow-700 text-white font-bold rounded-xl p-3 touch-area-48 transition duration-200 shadow disabled:bg-gray-400 disabled:shadow-none">
+                        Simpan Anggaran
+                    </button>
+                </form>
+            </div>
+        </section>
+
+
+        <!-- Quick Expense Entry (ATTENTION & PRIMARY ACTION) -->
+        <section id="quick-entry" class="bg-gray-50 p-6 sm:p-8 rounded-2xl shadow-2xl mb-10 border border-gray-100 fade-in" style="animation-delay: 0.1s;">
+            <h2 class="text-2xl sm:text-3xl font-extrabold mb-2 text-gray-800 flex items-center">
+                <!-- ICON: Zap for Quick Action -->
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-7 h-7 mr-2 text-blue-600"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                Catat Pengeluaran Cepat 
+            </h2>
+            <p class="text-gray-500 mb-6 max-w-lg">
+                Masukkan detail pengeluaran lintas mata uang. Sistem akan mengkonversi dan mencatatnya ke mata uang dasar <span class="font-semibold text-gray-700">IDR</span>.
+            </p>
+
+            <form id="expenseForm" class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+                
+                <!-- 1. Jumlah -->
+                <div class="md:col-span-2">
+                    <label for="amount" class="block text-sm font-bold text-gray-700 mb-1">Jumlah Pengeluaran</label>
+                    <input type="number" id="amount" name="amount" step="0.01" required 
+                           placeholder="Cth: 250000" 
+                           class="w-full border-2 border-gray-300 rounded-xl p-3 focus:ring-blue-500 focus:border-blue-500 text-lg">
+                    <p id="amountError" class="text-red-500 text-xs mt-1 hidden"></p>
+                </div>
+
+                <!-- 2. Mata Uang Asing -->
+                <div>
+                    <label for="currency" class="block text-sm font-bold text-gray-700 mb-1">Mata Uang</label>
+                    <select id="currency" name="currency" required
+                            class="w-full border-2 border-gray-300 rounded-xl p-3 touch-area-48 bg-white focus:ring-blue-500 focus:border-blue-500 text-lg">
+                        <!-- Options filled by JS -->
+                    </select>
+                </div>
+
+                <!-- 3. Kategori -->
+                <div>
+                    <label for="category" class="block text-sm font-bold text-gray-700 mb-1">Kategori</label>
+                    <select id="category" name="category" required
+                            class="w-full border-2 border-gray-300 rounded-xl p-3 touch-area-48 bg-white focus:ring-blue-500 focus:border-blue-500 text-lg">
+                        <!-- Emojis removed from text -->
+                        <option value="Makanan & Minuman">Makanan & Minuman</option>
+                        <option value="Transportasi">Transportasi</option>
+                        <option value="Sewa & Tagihan">Sewa & Tagihan</option>
+                        <option value="Belanja Pribadi">Belanja Pribadi</option>
+                        <option value="Bisnis">Bisnis</option>
+                        <option value="Lain-lain">Lain-lain</option>
+                    </select>
+                </div>
+                
+                <!-- 4. Keterangan (span 4 di desktop) -->
+                <div class="md:col-span-4 mt-2 md:mt-0"> 
+                    <label for="description" class="block text-sm font-bold text-gray-700 mb-1">Keterangan (Opsional)</label>
+                    <input type="text" id="description" name="description" placeholder="Cth: Beli makan siang di Warkop Bu Siti"
+                           class="w-full border-2 border-gray-300 rounded-xl p-3 focus:ring-blue-500 focus:border-blue-500 text-lg">
+                </div>
+
+                <!-- Action Button (span 1 di desktop) -->
+                <div class="md:col-span-1">
+                    <button type="submit" id="submitBtn"
+                            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-xl p-3 touch-area-48 transition duration-200 shadow-lg disabled:bg-gray-400 disabled:shadow-none transform hover:scale-[1.02]" disabled>
+                        Catat Sekarang
+                    </button>
+                </div>
+            </form>
+            
+            <!-- Feedback Modal/Message -->
+            <div id="successFeedback" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 z-50 flex items-center justify-center p-4">
+                <div class="bg-white p-8 rounded-2xl shadow-2xl text-center max-w-sm w-full transform transition-all duration-300 scale-95 opacity-0" id="feedbackCard">
+                    <!-- ICON: Success Checkmark -->
+                    <svg class="w-16 h-16 mx-auto text-success-green mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <h3 class="text-2xl font-bold text-gray-800 mb-3">Berhasil Dicatat!</h3>
+                    <p class="text-gray-600 mb-4" id="feedbackMessage"></p>
+                    <button onclick="closeFeedback()" class="mt-4 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-300 transition touch-area-48 font-semibold">Tutup</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Dashboard Summary (KEY DATA) -->
+        <section id="dashboard" class="mb-10">
+            <h2 class="text-2xl font-bold mb-4 text-gray-800 fade-in" style="animation-delay: 0.2s;">Ringkasan Bulan Ini</h2>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                
+                <!-- Total Pengeluaran -->
+                <div class="bg-white p-6 rounded-2xl shadow-xl border-t-4 border-blue-600 transition-transform transform hover:scale-[1.01] fade-in">
+                    <div class="flex items-center justify-between mb-2">
+                        <p class="text-base font-medium text-gray-500">Total Pengeluaran (IDR)</p>
+                        <!-- ICON: Wallet -->
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-blue-600"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h12a2 2 0 0 1 0 4H5a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h12a2 2 0 0 0 0-4H5a1 1 0 0 1-1-1V7.5a1 1 0 0 1 1-1h13"/><path d="M17 17a2 2 0 0 0 2-2V9.5a2 2 0 0 0-2-2"/></svg>
+                    </div>
+                    <p id="totalExpenseDisplay" class="text-4xl font-extrabold mt-1 text-gray-900">Rp0</p>
+                </div>
+
+                <!-- Sisa Anggaran -->
+                <div id="remainingBudgetCard" class="bg-white p-6 rounded-2xl shadow-xl border-t-4 border-success-green transition-transform transform hover:scale-[1.01] fade-in">
+                    <div class="flex items-center justify-between mb-2">
+                        <p class="text-base font-medium text-gray-500">
+                            Sisa Anggaran 
+                            (Target: <span id="targetBudgetDisplay">Rp0</span>)
+                        </p>
+                        <!-- ICON: Check Circle -->
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-success-green"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+                    </div>
+                    <p id="remainingBudgetDisplay" class="text-4xl font-extrabold mt-1 text-success-green">Rp0</p>
+                </div>
+
+                <!-- METRIK KETIGA -->
+                <div class="bg-white p-6 rounded-2xl shadow-xl border-t-4 border-gray-400 transition-transform transform hover:scale-[1.01] fade-in sm:col-span-2 lg:col-span-1 flex items-center justify-center">
+                    <p class="text-center text-sm font-medium text-gray-500">
+                        Visualisasi Kategori akan ditambahkan di sini.
+                        <span class="block font-semibold mt-2 text-gray-700">Ayo catat pengeluaran dengan Keterangan!</span>
+                    </p>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- Laporan Transaksi -->
+        <section id="transactions" class="mt-8 fade-in" style="animation-delay: 0.3s;">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Riwayat Transaksi</h2>
+            
+            <!-- FILTER TANGGAL BARU -->
+            <div class="bg-white p-4 sm:p-6 rounded-xl shadow-inner mb-6 border border-gray-200">
+                <h3 class="text-lg font-bold text-gray-800 mb-3 flex items-center">
+                    <!-- ICON: Calendar -->
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 mr-2 text-blue-600"><path d="M8 2V4"/><path d="M16 2V4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10H21"/></svg>
+                    Lihat Transaksi Berdasarkan Tanggal
+                </h3>
+                <div class="flex flex-col sm:flex-row gap-3 items-center">
+                    <input type="date" id="dateFilter" 
+                           class="w-full sm:w-1/2 border-2 border-gray-300 rounded-xl p-3 touch-area-48 focus:ring-blue-500 focus:border-blue-500 text-lg">
+                    <button id="clearDateFilterBtn" 
+                            class="w-full sm:w-auto bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold rounded-xl p-3 touch-area-48 transition duration-200">
+                        Hapus Filter
+                    </button>
+                </div>
+                <p id="filterStatus" class="mt-3 text-sm text-gray-500">Menampilkan pengeluaran bulan ini.</p>
+            </div>
+            
+            <!-- TOMBOL EKSPOR -->
+            <div class="flex flex-col sm:flex-row sm:space-x-4 space-y-4 sm:space-y-0 mb-6"> 
+                <button id="exportDailyPdfBtn" class="export-btn touch-area-48">
+                    Ekspor PDF Harian (Hari Ini)
+                </button>
+                <button id="exportMonthlyPdfBtn" class="export-btn touch-area-48">
+                    Ekspor PDF Bulanan
+                </button>
+            </div>
+            
+            <!-- Tempat Penampungan Laporan (Disembunyikan, hanya untuk pembuatan PDF) -->
+            <div id="reportContainer" style="position: absolute; left: -9999px; top: -9999px; width: 210mm; padding: 20px; background-color: white; color: black; font-family: sans-serif;">
+                <h1 id="reportTitle" style="font-size: 24px; font-weight: bold; margin-bottom: 10px;">Laporan</h1>
+                <p id="reportPeriod" style="margin-bottom: 20px; font-size: 14px;">Dibuat pada: </p>
+                <table id="reportTable" style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background-color: #f3f4f6;">
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Tanggal</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Kategori</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Keterangan</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Jumlah Asing</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Konversi (IDR)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reportBody">
+                        <!-- Data Laporan disini -->
+                    </tbody>
+                    <tfoot id="reportFooter">
+                        <!-- Total Pengeluaran disini -->
+                    </tfoot>
+                </table>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Tanggal</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Kategori</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Keterangan</th>
+                                <th class="px-6 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">Jumlah Asing</th>
+                                <th class="px-6 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">Konversi (IDR)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transactionsBody" class="bg-white divide-y divide-gray-200">
+                            <!-- Transactions listed here -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div id="emptyState" class="p-6 text-center text-gray-500 hidden">
+                    Belum ada pengeluaran dicatat untuk periode ini.
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="mt-12 py-6 bg-gray-50 border-t border-gray-200">
+        <div class="max-w-6xl mx-auto px-4 text-center text-sm text-gray-500">
+            Hak Cipta © 2025. Dibuat dengan kecerdasan buatan Gemini API.
+        </div>
+    </footer>
+
+    <script type="module">
+        // Import modul Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, collection, addDoc, onSnapshot, query, setLogLevel, doc, setDoc
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Atur tingkat log Firebase ke Debug (wajib)
+        setLogLevel('Debug');
+
+        // --- KONFIGURASI DAN INIITALISASI FIREBASE ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        let app;
+        let db;
+        let auth;
+        let userId = null;
+        let isAuthReady = false; 
+        let selectedDateFilter = null; 
+        
+        // Konstanta dan State Baru untuk Profil Pengguna
+        const USER_PROFILE_DOC_ID = 'user_profile';
+        let userName = null; // State untuk nama pengguna
+        
+        // Asumsikan window.jspdf.jsPDF tersedia karena CDN dimuat
+        const { jsPDF } = window.jspdf; 
+
+        // --- KONSTANTA MATA UANG & DATA STATE ---
+        const BASE_CURRENCY = 'IDR';
+        const SETTINGS_COLLECTION = 'settings';
+        const BUDGET_DOC_ID = 'budget_setting';
+        
+        let targetMonthlyBudget = 0; 
+        
+        // Kurs Konversi Dummy (1 unit Mata Uang Asing = X unit IDR)
+        const USD_TO_IDR_RATE = 15600; 
+        const DUMMY_RATES = {
+            'IDR': 1.0,                     
+            'USD': USD_TO_IDR_RATE,       // 1 USD = 15,600 IDR
+            'EUR': 1.08 * USD_TO_IDR_RATE, // 1 EUR ≈ 16,848 IDR
+            'GBP': 1.25 * USD_TO_IDR_RATE, // 1 GBP ≈ 19,500 IDR
+            'JPY': 0.0066 * USD_TO_IDR_RATE, // 1 JPY ≈ 102.96 IDR
+            'AUD': 0.67 * USD_TO_IDR_RATE, // 1 AUD ≈ 10,452 IDR
+            'CAD': 0.73 * USD_TO_IDR_RATE  // 1 CAD ≈ 11,388 IDR
+        };
+        const CURRENCY_SYMBOLS = {
+            'USD': '$',
+            'EUR': '€',
+            'IDR': 'Rp',
+            'GBP': '£',
+            'JPY': '¥',
+            'AUD': 'A$',
+            'CAD': 'C$'
+        };
+        
+        // Mapping untuk warna kategori
+        const CATEGORY_COLORS = {
+            'Makanan & Minuman': 'bg-red-100 text-red-800',
+            'Transportasi': 'bg-indigo-100 text-indigo-800',
+            'Sewa & Tagihan': 'bg-purple-100 text-purple-800',
+            'Belanja Pribadi': 'bg-pink-100 text-pink-800',
+            'Bisnis': 'bg-blue-100 text-blue-800',
+            'Lain-lain': 'bg-gray-200 text-gray-800',
+        };
+
+        // Data Structure
+        let budgetData = {
+            expenses: [] 
+        };
+
+        // --- UTILITY FIREBASE ---
+
+        function getExpensesCollectionRef(currentUserId) {
+            // Path: /artifacts/{appId}/users/{userId}/expenses
+            const path = `artifacts/${appId}/users/${currentUserId}/expenses`;
+            return collection(db, path);
+        }
+        
+        function getBudgetDocRef(currentUserId) {
+            // Path: /artifacts/{appId}/users/{userId}/settings/budget_setting
+            const path = `artifacts/${appId}/users/${currentUserId}/${SETTINGS_COLLECTION}`;
+            return doc(db, path, BUDGET_DOC_ID);
+        }
+        
+        function getProfileDocRef(currentUserId) {
+            // Path: /artifacts/{appId}/users/{userId}/settings/user_profile
+            const path = `artifacts/${appId}/users/${currentUserId}/${SETTINGS_COLLECTION}`;
+            return doc(db, path, USER_PROFILE_DOC_ID);
+        }
+
+        async function saveProfileName(name) {
+             if (!isAuthReady || !userId) {
+                console.error("Autentikasi belum siap untuk menyimpan profil.");
+                return;
+            }
+            try {
+                const profileRef = getProfileDocRef(userId);
+                // setDoc with merge: true
+                await setDoc(profileRef, {
+                    name: name,
+                    lastUpdated: new Date()
+                }, { merge: true });
+
+                console.log(`Nama pengguna berhasil disimpan: ${name}`);
+            } catch (error) {
+                console.error("Kesalahan saat menyimpan nama profil:", error);
+            }
+        }
+        
+        async function saveBudget(budgetAmount) {
+            if (!isAuthReady || !userId) {
+                console.error("Autentikasi belum siap untuk menyimpan anggaran.");
+                return;
+            }
+            try {
+                const budgetRef = getBudgetDocRef(userId);
+                await setDoc(budgetRef, {
+                    amount: budgetAmount,
+                    lastUpdated: new Date()
+                }, { merge: true });
+
+                showFeedback(`Anggaran bulanan berhasil diperbarui menjadi ${formatCurrency(budgetAmount)}.`);
+            } catch (error) {
+                console.error("Kesalahan saat menyimpan anggaran:", error);
+                showFeedback(`Gagal menyimpan anggaran. Cek konsol untuk detail error.`);
+            }
+        }
+
+        async function initializeFirebase() {
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        isAuthReady = true;
+                        // document.getElementById('userIdDisplay').textContent = userId; // Ganti dengan userName
+                        document.getElementById('submitBtn').disabled = false;
+                        document.getElementById('saveBudgetBtn').disabled = false;
+                        console.log("Firebase Auth Ready. User ID:", userId);
+                        
+                        // Start listening to data after authentication is ready
+                        listenForProfile(); // **NEW** Listen for user profile
+                        listenForBudget();
+                        listenForExpenses();
+                    } else {
+                        if (initialAuthToken) {
+                            await signInWithCustomToken(auth, initialAuthToken);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    }
+                    // Loading overlay disembunyikan setelah auth siap dan listenForProfile dipanggil
+                });
+
+            } catch (error) {
+                console.error("Kesalahan inisialisasi Firebase:", error);
+                document.getElementById('userIdDisplay').textContent = 'ERROR';
+                document.getElementById('loadingOverlay').innerHTML = '<p class="text-red-600">Gagal memuat: ' + error.message + '</p>';
+            }
+        }
+        
+        function listenForProfile() {
+            if (!isAuthReady || !userId) return;
+
+            const profileRef = getProfileDocRef(userId);
+            const nameInputModal = document.getElementById('nameInputModal');
+            const loadingOverlay = document.getElementById('loadingOverlay');
+
+            onSnapshot(profileRef, (doc) => {
+                if (doc.exists() && doc.data().name) {
+                    userName = doc.data().name;
+                    console.log(`Nama Pengguna Diperbarui: ${userName}`);
+                    // Sembunyikan modal jika nama sudah ada
+                    if (!nameInputModal.classList.contains('hidden')) {
+                        nameInputModal.classList.add('hidden');
+                    }
+                } else {
+                    userName = null;
+                    console.log("Nama pengguna belum diset, tampilkan modal.");
+                    // Tampilkan modal untuk input nama
+                    nameInputModal.classList.remove('hidden');
+                }
+                
+                // Sembunyikan loading overlay di sini, setelah data utama (profile) dimuat/diperiksa
+                loadingOverlay.style.opacity = '0';
+                setTimeout(() => loadingOverlay.classList.add('hidden'), 300);
+
+                refreshUI(); 
+            }, (error) => {
+                console.error("Kesalahan onSnapshot Profile:", error);
+            });
+        }
+        
+        function listenForBudget() {
+            if (!isAuthReady || !userId) return;
+
+            const budgetRef = getBudgetDocRef(userId);
+            
+            onSnapshot(budgetRef, (doc) => {
+                if (doc.exists() && doc.data().amount) {
+                    targetMonthlyBudget = doc.data().amount;
+                    document.getElementById('targetBudgetInput').value = targetMonthlyBudget;
+                    console.log(`Anggaran Target Diperbarui: ${targetMonthlyBudget}`);
+                } else {
+                    targetMonthlyBudget = 0; 
+                    document.getElementById('targetBudgetInput').value = targetMonthlyBudget;
+                    console.log("Anggaran target belum ditetapkan, menggunakan default 0.");
+                }
+                refreshUI(); // Refresh UI to update dashboard
+            }, (error) => {
+                console.error("Kesalahan onSnapshot Budget:", error);
+            });
+        }
+
+        function listenForExpenses() {
+            if (!isAuthReady || !userId) return;
+
+            const expensesRef = getExpensesCollectionRef(userId);
+            const q = query(expensesRef);
+
+            onSnapshot(q, (snapshot) => {
+                const fetchedExpenses = [];
+                snapshot.forEach((doc) => {
+                    const data = doc.data();
+                    fetchedExpenses.push({
+                        ...data,
+                        id: doc.id,
+                        timestamp: data.timestamp ? data.timestamp.toDate().toISOString() : new Date().toISOString()
+                    });
+                });
+
+                budgetData.expenses = fetchedExpenses;
+                console.log(`Data diterima: ${fetchedExpenses.length} pengeluaran.`);
+                refreshUI();
+            }, (error) => {
+                console.error("Kesalahan onSnapshot Firestore:", error);
+            });
+        }
+
+
+        // --- UTILITY FUNCTIONS (Non-Firebase) ---
+
+        function convertToBaseCurrency(amount, fromCurrency) {
+            const rate = DUMMY_RATES[fromCurrency];
+            return amount * (rate || 1.0);
+        }
+
+        /**
+         * Formats the base currency (IDR)
+         */
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('id-ID', {
+                style: 'currency',
+                currency: BASE_CURRENCY,
+                minimumFractionDigits: 0, 
+                maximumFractionDigits: 0
+            }).format(amount);
+        }
+
+        /**
+         * Formats foreign currency
+         */
+        function formatCurrencyLocal(amount, currency) {
+            // Use English format for foreign currency to make it distinct
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: currency,
+                minimumFractionDigits: currency === 'IDR' ? 0 : 2
+            }).format(amount);
+        }
+        
+        function showFeedback(message) {
+            const feedbackModal = document.getElementById('successFeedback');
+            const feedbackCard = document.getElementById('feedbackCard');
+            document.getElementById('feedbackMessage').textContent = message;
+            
+            feedbackModal.classList.remove('hidden');
+            setTimeout(() => {
+                feedbackCard.classList.remove('opacity-0', 'scale-95');
+                feedbackCard.classList.add('opacity-100', 'scale-100');
+            }, 10);
+
+            setTimeout(closeFeedback, 3500);
+        }
+
+        window.closeFeedback = function() {
+            const feedbackModal = document.getElementById('successFeedback');
+            const feedbackCard = document.getElementById('feedbackCard');
+            
+            feedbackCard.classList.remove('opacity-100', 'scale-100');
+            feedbackCard.classList.add('opacity-0', 'scale-95');
+
+            setTimeout(() => {
+                feedbackModal.classList.add('hidden');
+            }, 300);
+        }
+
+        /**
+         * Compares if two dates are the same day/month/year.
+         */
+        function isSameDay(date1, date2) {
+            const d1 = new Date(date1);
+            const d2 = new Date(date2);
+            return d1.getFullYear() === d2.getFullYear() &&
+                   d1.getMonth() === d2.getMonth() &&
+                   d1.getDate() === d2.getDate();
+        }
+
+        function isSameMonth(date1, date2) {
+             const d1 = new Date(date1);
+             const d2 = new Date(date2);
+             return d1.getFullYear() === d2.getFullYear() &&
+                   d1.getMonth() === d2.getMonth();
+        }
+
+
+        // --- PDF EXPORT LOGIC ---
+
+        /**
+         * Creates and downloads a PDF file from the given transaction data.
+         */
+        async function exportToPdf(transactions, title, filename) {
+            if (transactions.length === 0) {
+                showFeedback(`Tidak ada transaksi untuk periode ${title.split(' - ')[1]} yang dapat diekspor.`);
+                return;
+            }
+
+            const reportContainer = document.getElementById('reportContainer');
+            const reportBody = document.getElementById('reportBody');
+            const reportFooter = document.getElementById('reportFooter');
+            
+            // 1. Prepare HTML Content for PDF
+            document.getElementById('reportTitle').textContent = title;
+            document.getElementById('reportPeriod').textContent = `Dibuat pada: ${new Date().toLocaleString('id-ID')}`;
+            
+            let totalConverted = 0;
+            reportBody.innerHTML = '';
+            
+            // Sort by date (newest first)
+            transactions.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+            transactions.forEach(exp => {
+                totalConverted += exp.convertedAmount;
+                const date = new Date(exp.timestamp).toLocaleDateString('id-ID');
+                const foreignAmountFormatted = formatCurrencyLocal(exp.amount, exp.currency);
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td style="border: 1px solid #ddd; padding: 8px;">${date}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${exp.category}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${exp.description || '—'}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${foreignAmountFormatted}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold;">${formatCurrency(exp.convertedAmount)}</td>
+                `;
+                reportBody.appendChild(row);
+            });
+
+            // Add Total in Footer (colspan is 4 due to the new description column)
+            reportFooter.innerHTML = `
+                <tr style="background-color: #f0f0f0;">
+                    <td colspan="4" style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold;">TOTAL PENGELUARAN</td>
+                    <td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold; color: #DC2626;">${formatCurrency(totalConverted)}</td>
+                </tr>
+            `;
+
+            // 2. Use html2canvas to render HTML to canvas
+            try {
+                const canvas = await html2canvas(reportContainer, { 
+                    scale: 2, // Increase resolution
+                    logging: false, 
+                    useCORS: true 
+                });
+                const imgData = canvas.toDataURL('image/png');
+
+                // 3. Create jsPDF object
+                const pdf = new jsPDF('p', 'mm', 'a4'); 
+                const imgProps = pdf.getImageProperties(imgData);
+                const pdfWidth = pdf.internal.pageSize.getWidth() - 20; // 10mm margin each side
+                const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+                
+                // Add image to PDF with 10mm margin
+                pdf.addImage(imgData, 'PNG', 10, 10, pdfWidth, pdfHeight);
+                
+                // 4. Download File
+                pdf.save(filename);
+                showFeedback(`Laporan PDF "${filename}" berhasil dibuat.`);
+            } catch (error) {
+                console.error("Error saat membuat PDF:", error);
+                showFeedback(`Gagal membuat PDF. Cek konsol untuk detail error.`);
+            }
+        }
+
+        // --- SPECIFIC EXPORT HANDLERS ---
+
+        async function exportDailyPdf() {
+            const today = new Date();
+            const dateString = today.toLocaleDateString('id-ID');
+            
+            // 1. Filter transactions for today
+            const dailyTransactions = budgetData.expenses.filter(exp => {
+                const expDate = new Date(exp.timestamp);
+                return isSameDay(expDate, today);
+            });
+
+            // 2. Call the main export function
+            const title = `Laporan Pengeluaran Harian - ${dateString}`;
+            const filename = `Laporan_Harian_${today.toISOString().split('T')[0]}.pdf`;
+            
+            await exportToPdf(dailyTransactions, title, filename);
+        }
+
+        async function exportMonthlyPdf() {
+            const today = new Date();
+            const monthString = today.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+            
+            // 1. Filter transactions for this month
+            const monthlyTransactions = budgetData.expenses.filter(exp => {
+                const expDate = new Date(exp.timestamp);
+                return isSameMonth(expDate, today);
+            });
+
+            // 2. Call the main export function
+            const title = `Laporan Pengeluaran Bulanan - ${monthString}`;
+            const filename = `Laporan_Bulanan_${today.getFullYear()}_${today.getMonth() + 1}.pdf`;
+            
+            await exportToPdf(monthlyTransactions, title, filename);
+        }
+
+
+        // --- RENDERING FUNCTIONS ---
+
+        function renderCurrencyOptions() {
+            const select = document.getElementById('currency');
+            select.innerHTML = '';
+            
+            // Ensure IDR is the default
+            const preferredOrder = ['IDR', 'USD', 'EUR', 'GBP'];
+            const sortedCurrencies = [...new Set([...preferredOrder, ...Object.keys(DUMMY_RATES)])];
+
+            sortedCurrencies.forEach(code => {
+                const option = document.createElement('option');
+                option.value = code;
+                option.textContent = `${code} (${CURRENCY_SYMBOLS[code] || code})`;
+                if (code === BASE_CURRENCY) {
+                     option.selected = true; 
+                }
+                select.appendChild(option);
+            });
+        }
+
+        function updateDashboard() {
+            const currentMonth = new Date().getMonth();
+            const currentYear = new Date().getFullYear();
+            
+            const currentMonthExpenses = budgetData.expenses.filter(exp => {
+                const date = new Date(exp.timestamp);
+                return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+            });
+            
+            const totalExpense = currentMonthExpenses.reduce((sum, exp) => sum + exp.convertedAmount, 0);
+            const remainingBudget = targetMonthlyBudget - totalExpense;
+
+            // Display Updates
+            document.getElementById('totalExpenseDisplay').textContent = formatCurrency(totalExpense);
+            document.getElementById('targetBudgetDisplay').textContent = formatCurrency(targetMonthlyBudget);
+            
+            const remainingDisplay = document.getElementById('remainingBudgetDisplay');
+            const remainingCard = document.getElementById('remainingBudgetCard');
+            
+            // Coloring based on status
+            if (remainingBudget < 0) {
+                remainingDisplay.classList.remove('text-success-green');
+                remainingDisplay.classList.add('text-red-500');
+                remainingCard.classList.remove('border-success-green');
+                remainingCard.classList.add('border-red-500');
+                remainingDisplay.textContent = `LEBIH: ${formatCurrency(Math.abs(remainingBudget))}`;
+            } else {
+                remainingDisplay.classList.add('text-success-green');
+                remainingDisplay.classList.remove('text-red-500');
+                remainingCard.classList.add('border-success-green');
+                remainingCard.classList.remove('border-red-500');
+                remainingDisplay.textContent = formatCurrency(Math.abs(remainingBudget));
+            }
+        }
+
+        function renderTransactions() {
+            const tbody = document.getElementById('transactionsBody');
+            const emptyState = document.getElementById('emptyState');
+            const filterStatus = document.getElementById('filterStatus');
+
+            tbody.innerHTML = '';
+            
+            const today = new Date();
+            let filteredExpenses = [];
+            let statusMessage = '';
+
+            // 1. Filter Logics
+            if (selectedDateFilter) {
+                // Filter by specific day
+                const filterDate = new Date(selectedDateFilter);
+                filteredExpenses = budgetData.expenses.filter(exp => {
+                    const expDate = new Date(exp.timestamp);
+                    return isSameDay(expDate, filterDate);
+                });
+                statusMessage = `Menampilkan pengeluaran pada tanggal ${filterDate.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`;
+            } else {
+                // Filter by current month (default)
+                filteredExpenses = budgetData.expenses.filter(exp => {
+                    const date = new Date(exp.timestamp);
+                    return isSameMonth(date, today);
+                });
+                statusMessage = 'Menampilkan pengeluaran bulan ini.';
+            }
+
+            filterStatus.textContent = statusMessage;
+
+            // 2. Sort filtered expenses (newest first)
+            filteredExpenses.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+            if (filteredExpenses.length === 0) {
+                emptyState.classList.remove('hidden');
+                emptyState.textContent = selectedDateFilter 
+                    ? `Tidak ada pengeluaran dicatat pada ${new Date(selectedDateFilter).toLocaleDateString('id-ID')}.` 
+                    : 'Belum ada pengeluaran dicatat bulan ini.';
+                return;
+            }
+            emptyState.classList.add('hidden');
+
+            // 3. Render
+            filteredExpenses.forEach(exp => {
+                const date = new Date(exp.timestamp).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50 transition duration-150';
+
+                const foreignAmountFormatted = formatCurrencyLocal(exp.amount, exp.currency);
+                const categoryClass = CATEGORY_COLORS[exp.category] || CATEGORY_COLORS['Lain-lain'];
+                const descriptionText = exp.description && exp.description.trim() !== '' ? exp.description : '—';
+
+                row.innerHTML = `
+                    <td class="px-6 py-3 whitespace-nowrap text-sm font-medium text-gray-900">${date}</td>
+                    <td class="px-6 py-3 whitespace-nowrap text-sm">
+                        <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${categoryClass}">
+                            ${exp.category}
+                        </span>
+                    </td>
+                    <td class="px-6 py-3 text-sm text-gray-600">${descriptionText}</td>
+                    <td class="px-6 py-3 whitespace-nowrap text-sm text-right font-mono text-gray-700">${foreignAmountFormatted}</td>
+                    <td class="px-6 py-3 whitespace-nowrap text-sm text-right font-bold text-gray-900">${formatCurrency(exp.convertedAmount)}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function updateUserIdDisplay() {
+            const displayElement = document.getElementById('userIdDisplay');
+            if (userName) {
+                displayElement.textContent = userName;
+                displayElement.classList.remove('text-xs', 'font-mono');
+                displayElement.classList.add('text-base', 'font-bold', 'text-gray-800');
+            } else {
+                displayElement.textContent = 'Pengguna Anonim';
+                displayElement.classList.add('text-xs', 'font-mono');
+                displayElement.classList.remove('text-base', 'font-bold', 'text-gray-800');
+            }
+        }
+
+        function refreshUI() {
+            updateUserIdDisplay(); // **NEW** Update display
+            updateDashboard();
+            renderTransactions(); 
+        }
+
+        // --- EVENT HANDLERS ---
+        
+        // 0. Name Input Modal Handlers
+        document.getElementById('nameInput').addEventListener('input', (e) => {
+            const name = e.target.value.trim();
+            document.getElementById('saveNameBtn').disabled = name.length === 0;
+        });
+
+        document.getElementById('saveNameBtn').addEventListener('click', async () => {
+            const nameInput = document.getElementById('nameInput');
+            const name = nameInput.value.trim();
+            if (name) {
+                document.getElementById('saveNameBtn').disabled = true;
+                await saveProfileName(name); // Simpan nama ke Firestore
+                // onSnapshot akan mengambil nama, menyetel userName, dan menyembunyikan modal
+            }
+        });
+
+
+        // 1. Handler untuk menyimpan Anggaran Bulanan
+        document.getElementById('budgetForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const budgetInput = document.getElementById('targetBudgetInput');
+            const newBudget = parseFloat(budgetInput.value);
+
+            if (isNaN(newBudget) || newBudget < 0) {
+                showFeedback("Anggaran harus berupa angka positif atau nol.");
+                budgetInput.focus();
+                return;
+            }
+            
+            document.getElementById('saveBudgetBtn').disabled = true;
+            await saveBudget(newBudget);
+            document.getElementById('saveBudgetBtn').disabled = false;
+        });
+
+        // 2. Handler untuk mencatat Pengeluaran
+        document.getElementById('expenseForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            if (!isAuthReady || !userId) {
+                console.error("Autentikasi belum siap.");
+                return;
+            }
+
+            const amountInput = document.getElementById('amount');
+            const amountError = document.getElementById('amountError');
+            
+            const amount = parseFloat(amountInput.value);
+            const currency = document.getElementById('currency').value;
+            const category = document.getElementById('category').value;
+            const description = document.getElementById('description').value.trim();
+
+            if (isNaN(amount) || amount <= 0) {
+                amountError.textContent = "Jumlah harus angka positif.";
+                amountError.classList.remove('hidden');
+                amountInput.focus();
+                return;
+            }
+            amountError.classList.add('hidden');
+
+            const convertedAmount = convertToBaseCurrency(amount, currency);
+            
+            const newExpense = {
+                timestamp: new Date(), 
+                amount: amount,
+                currency: currency,
+                category: category,
+                description: description,
+                convertedAmount: convertedAmount,
+            };
+
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true; 
+
+            try {
+                await addDoc(getExpensesCollectionRef(userId), newExpense);
+                
+                amountInput.value = '';
+                document.getElementById('currency').value = BASE_CURRENCY; 
+                document.getElementById('category').value = 'Makanan & Minuman';
+                document.getElementById('description').value = ''; 
+                
+                showFeedback(`Berhasil mencatat ${newExpense.currency} ${newExpense.amount.toLocaleString('id-ID')} (${formatCurrency(newExpense.convertedAmount)}) untuk ${newExpense.category}. Keterangan: ${newExpense.description || 'Tidak ada'}.`);
+                
+            } catch (error) {
+                console.error("Error saat menambahkan dokumen: ", error);
+                showFeedback(`Gagal mencatat pengeluaran. Cek konsol untuk detail.`);
+            } finally {
+                submitBtn.disabled = false; 
+            }
+        });
+
+        // 3. Event listener untuk PDF Harian
+        document.getElementById('exportDailyPdfBtn').addEventListener('click', exportDailyPdf);
+        
+        // 4. Event listener untuk PDF Bulanan
+        document.getElementById('exportMonthlyPdfBtn').addEventListener('click', exportMonthlyPdf);
+
+        // 5. Handler Filter Tanggal
+        document.getElementById('dateFilter').addEventListener('change', (e) => {
+            if (e.target.value) {
+                // Set selectedDateFilter to the date string (YYYY-MM-DD)
+                selectedDateFilter = e.target.value; 
+            } else {
+                selectedDateFilter = null;
+            }
+            renderTransactions(); // Rerender transactions with the new filter
+        });
+
+        // 6. Handler Hapus Filter Tanggal
+        document.getElementById('clearDateFilterBtn').addEventListener('click', () => {
+            document.getElementById('dateFilter').value = '';
+            selectedDateFilter = null;
+            renderTransactions(); // Rerender transactions to show current month
+        });
+
+
+        // --- INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', () => {
+            renderCurrencyOptions();
+            initializeFirebase(); 
+
+            // Set current month display
+            const date = new Date();
+            document.getElementById('currentMonthDisplay').textContent = date.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+        });
+    </script>
+</body>
+</html>
