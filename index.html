@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
     <!-- CDN untuk PDF: jsPDF & html2canvas -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html22canvas/1.4.1/html2canvas.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.js"></script>
 
     <style>
         :root {
@@ -205,8 +205,28 @@
                         <option value="Lain-lain">Lain-lain</option>
                     </select>
                 </div>
+
+                <!-- 4. Sumber Dana (BARU) -->
+                <div class="md:col-span-2 mt-2 md:mt-0"> 
+                    <label for="source" class="block text-sm font-bold text-gray-700 mb-1">Sumber Dana</label>
+                    <select id="source" name="source" onchange="toggleEwalletOptions()" required
+                            class="w-full border-2 border-gray-300 rounded-xl p-3 touch-area-48 bg-white focus:ring-blue-500 focus:border-blue-500 text-lg">
+                        <option value="Tunai">Tunai (Cash)</option>
+                        <option value="Bank">Bank</option>
+                        <option value="E-Wallet">Dompet Digital (E-Wallet)</option>
+                    </select>
+                </div>
+
+                <!-- 5. Nama E-Wallet (BARU & KONDISIONAL) -->
+                <div id="ewallet-container" class="md:col-span-1 hidden mt-2 md:mt-0"> 
+                    <label for="ewallet_name" class="block text-sm font-bold text-gray-700 mb-1">Nama E-Wallet</label>
+                    <select id="ewallet_name" name="ewallet_name"
+                            class="w-full border-2 border-gray-300 rounded-xl p-3 touch-area-48 bg-white focus:ring-green-500 focus:border-green-500 text-lg">
+                        <!-- Options populated by JS -->
+                    </select>
+                </div>
                 
-                <!-- 4. Keterangan (span 4 di desktop) -->
+                <!-- 6. Keterangan (span 4 di desktop) -->
                 <div class="md:col-span-4 mt-2 md:mt-0"> 
                     <label for="description" class="block text-sm font-bold text-gray-700 mb-1">Keterangan (Opsional)</label>
                     <input type="text" id="description" name="description" placeholder="Cth: Beli makan siang di Warkop Bu Siti"
@@ -214,7 +234,7 @@
                 </div>
 
                 <!-- Action Button (span 1 di desktop) -->
-                <div class="md:col-span-1">
+                <div class="md:col-span-1 mt-2 md:mt-0">
                     <button type="submit" id="submitBtn"
                             class="w-full bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-xl p-3 touch-area-48 transition duration-200 shadow-lg disabled:bg-gray-400 disabled:shadow-none transform hover:scale-[1.02]" disabled>
                         Catat Sekarang
@@ -315,6 +335,7 @@
                         <tr style="background-color: #f3f4f6;">
                             <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Tanggal</th>
                             <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Kategori</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Sumber Dana</th> <!-- BARU: PDF Header -->
                             <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Keterangan</th>
                             <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Jumlah Asing</th>
                             <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Konversi (IDR)</th>
@@ -336,6 +357,7 @@
                             <tr>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Tanggal</th>
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Kategori</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Sumber Dana</th> <!-- BARU: Table Header -->
                                 <th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Keterangan</th>
                                 <th class="px-6 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">Jumlah Asing</th>
                                 <th class="px-6 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">Konversi (IDR)</th>
@@ -429,6 +451,14 @@
             'Bisnis': 'bg-blue-100 text-blue-800',
             'Lain-lain': 'bg-gray-200 text-gray-800',
         };
+
+        // Daftar E-Wallet Indonesia yang komprehensif (BARU)
+        const Ewallets = [
+            'GoPay', 'OVO', 'DANA', 'LinkAja', 'ShopeePay', 'Sakuku (BCA)', 
+            'i.Saku (Indomaret)', 'AstraPay', 'Jenius', 'Doku Wallet', 'Emoney (Mandiri)', 
+            'QRIS (Lainnya)', 'Allo Bank', 'BlueBird E-Wallet', 'Dana Pensiun/Investasi'
+        ];
+
 
         // Data Structure
         let budgetData = {
@@ -713,11 +743,17 @@
                 totalConverted += exp.convertedAmount;
                 const date = new Date(exp.timestamp).toLocaleDateString('id-ID');
                 const foreignAmountFormatted = formatCurrencyLocal(exp.amount, exp.currency);
+                
+                // BARU: Menampilkan sumber dana untuk PDF
+                const sourceDetailPdf = exp.source === 'E-Wallet' 
+                    ? `${exp.ewalletName || 'E-Wallet Lain'}`
+                    : exp.source;
 
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td style="border: 1px solid #ddd; padding: 8px;">${date}</td>
                     <td style="border: 1px solid #ddd; padding: 8px;">${exp.category}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${sourceDetailPdf}</td> <!-- BARU: Data Sumber Dana -->
                     <td style="border: 1px solid #ddd; padding: 8px;">${exp.description || '—'}</td>
                     <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${foreignAmountFormatted}</td>
                     <td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold;">${formatCurrency(exp.convertedAmount)}</td>
@@ -725,10 +761,10 @@
                 reportBody.appendChild(row);
             });
 
-            // Add Total in Footer (colspan is 4 due to the new description column)
+            // Update Colspan for Footer (6 columns now: Tanggal, Kategori, Sumber Dana, Keterangan, Jumlah Asing, Konversi)
             reportFooter.innerHTML = `
                 <tr style="background-color: #f0f0f0;">
-                    <td colspan="4" style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold;">TOTAL PENGELUARAN</td>
+                    <td colspan="5" style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold;">TOTAL PENGELUARAN</td>
                     <td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold; color: #DC2626;">${formatCurrency(totalConverted)}</td>
                 </tr>
             `;
@@ -817,6 +853,36 @@
                 select.appendChild(option);
             });
         }
+        
+        // FUNGSI BARU: Isi dropdown E-Wallet
+        function populateEwalletOptions() {
+            const ewalletSelect = document.getElementById('ewallet_name');
+            ewalletSelect.innerHTML = '<option value="" disabled selected>Pilih E-Wallet</option>';
+            Ewallets.forEach(wallet => {
+                const option = document.createElement('option');
+                option.value = wallet;
+                option.textContent = wallet;
+                ewalletSelect.appendChild(option);
+            });
+        }
+
+        // FUNGSI BARU: Tampilkan/Sembunyikan opsi E-Wallet
+        window.toggleEwalletOptions = function() {
+            const sourceSelect = document.getElementById('source');
+            const ewalletContainer = document.getElementById('ewallet-container');
+            const ewalletSelect = document.getElementById('ewallet_name');
+
+            if (sourceSelect.value === 'E-Wallet') {
+                ewalletContainer.classList.remove('hidden');
+                ewalletSelect.setAttribute('required', 'required');
+                ewalletSelect.focus();
+            } else {
+                ewalletContainer.classList.add('hidden');
+                ewalletSelect.removeAttribute('required');
+                ewalletSelect.value = ""; // Reset nilai
+            }
+        };
+
 
         function updateDashboard() {
             const currentMonth = new Date().getMonth();
@@ -905,6 +971,17 @@
                 const foreignAmountFormatted = formatCurrencyLocal(exp.amount, exp.currency);
                 const categoryClass = CATEGORY_COLORS[exp.category] || CATEGORY_COLORS['Lain-lain'];
                 const descriptionText = exp.description && exp.description.trim() !== '' ? exp.description : '—';
+                
+                // BARU: Menampilkan Sumber Dana
+                let sourceDetail;
+                if (exp.source === 'E-Wallet') {
+                    sourceDetail = `<span class="font-semibold text-green-700">E-Wallet</span>: ${exp.ewalletName || 'Lainnya'}`;
+                } else if (exp.source === 'Bank') {
+                    sourceDetail = `<span class="font-semibold text-blue-700">Bank</span>`;
+                } else {
+                    sourceDetail = `<span class="font-semibold text-gray-700">Tunai</span>`;
+                }
+
 
                 row.innerHTML = `
                     <td class="px-6 py-3 whitespace-nowrap text-sm font-medium text-gray-900">${date}</td>
@@ -913,6 +990,7 @@
                             ${exp.category}
                         </span>
                     </td>
+                    <td class="px-6 py-3 text-sm">${sourceDetail}</td> <!-- BARU: Kolom Sumber Dana -->
                     <td class="px-6 py-3 text-sm text-gray-600">${descriptionText}</td>
                     <td class="px-6 py-3 whitespace-nowrap text-sm text-right font-mono text-gray-700">${foreignAmountFormatted}</td>
                     <td class="px-6 py-3 whitespace-nowrap text-sm text-right font-bold text-gray-900">${formatCurrency(exp.convertedAmount)}</td>
@@ -985,6 +1063,9 @@
                 return;
             }
 
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true; 
+
             const amountInput = document.getElementById('amount');
             const amountError = document.getElementById('amountError');
             
@@ -992,14 +1073,29 @@
             const currency = document.getElementById('currency').value;
             const category = document.getElementById('category').value;
             const description = document.getElementById('description').value.trim();
+            
+            // BARU: Ambil Sumber Dana
+            const source = document.getElementById('source').value;
+            const ewalletName = source === 'E-Wallet' ? document.getElementById('ewallet_name').value : null;
+
 
             if (isNaN(amount) || amount <= 0) {
                 amountError.textContent = "Jumlah harus angka positif.";
                 amountError.classList.remove('hidden');
                 amountInput.focus();
+                submitBtn.disabled = false; 
                 return;
             }
             amountError.classList.add('hidden');
+            
+            // BARU: Validasi E-Wallet
+            if (source === 'E-Wallet' && !ewalletName) {
+                showFeedback("Anda memilih E-Wallet, mohon pilih nama Dompet Digital.");
+                document.getElementById('ewallet_name').focus();
+                submitBtn.disabled = false; 
+                return;
+            }
+
 
             const convertedAmount = convertToBaseCurrency(amount, currency);
             
@@ -1010,10 +1106,10 @@
                 category: category,
                 description: description,
                 convertedAmount: convertedAmount,
+                // BARU: Data Sumber Dana
+                source: source,
+                ewalletName: ewalletName,
             };
-
-            const submitBtn = document.getElementById('submitBtn');
-            submitBtn.disabled = true; 
 
             try {
                 await addDoc(getExpensesCollectionRef(userId), newExpense);
@@ -1022,8 +1118,10 @@
                 document.getElementById('currency').value = BASE_CURRENCY; 
                 document.getElementById('category').value = 'Makanan & Minuman';
                 document.getElementById('description').value = ''; 
+                document.getElementById('source').value = 'Tunai'; // Reset sumber dana
+                toggleEwalletOptions(); // Sembunyikan E-Wallet
                 
-                showFeedback(`Berhasil mencatat ${newExpense.currency} ${newExpense.amount.toLocaleString('id-ID')} (${formatCurrency(newExpense.convertedAmount)}) untuk ${newExpense.category}. Keterangan: ${newExpense.description || 'Tidak ada'}.`);
+                showFeedback(`Berhasil mencatat ${newExpense.currency} ${newExpense.amount.toLocaleString('id-ID')} (${formatCurrency(newExpense.convertedAmount)}) dari ${newExpense.ewalletName || newExpense.source}.`);
                 
             } catch (error) {
                 console.error("Error saat menambahkan dokumen: ", error);
@@ -1061,6 +1159,7 @@
         // --- INITIALIZATION ---
         document.addEventListener('DOMContentLoaded', () => {
             renderCurrencyOptions();
+            populateEwalletOptions(); // BARU: Isi dropdown E-Wallet
             initializeFirebase(); 
 
             // Set current month display
