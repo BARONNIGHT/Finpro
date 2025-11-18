@@ -1,10 +1,10 @@
-# 🛠️ Panduan Kustomisasi Proyek Web Anda
+# Panduan Kustomisasi Proyek Web Anda
 
 Dokumen ini memberikan petunjuk langkah demi langkah untuk melakukan kustomisasi dasar seperti mengganti nama aplikasi web, detail kredit/hak cipta, favicon, dan deskripsi meta untuk SEO.
 
 ---
 
-## 📌 Daftar Isi
+## Daftar Isi
 - [1. Informasi Dasar Proyek](#1-informasi-dasar-proyek)
 - [2. Langkah-Langkah Kustomisasi](#2-langkah-langkah-kustomisasi)
   - [2.1 Mengganti Nama Aplikasi Web](#21-mengganti-nama-aplikasi-web)
@@ -55,7 +55,7 @@ Nama ini muncul di tab browser dan berpengaruh pada SEO.
 
 ---
 
-### 2.2 Mengganti Teks Kredit dan Hak Cipta (Footer)
+2.2 Mengganti Teks Kredit dan Hak Cipta
 
 1. Buka index.html atau footer.html.
 
@@ -79,7 +79,7 @@ Nama ini muncul di tab browser dan berpengaruh pada SEO.
 
 ---
 
-### 2.3 Mengganti Deskripsi Meta untuk SEO
+2.3 Mengganti Deskripsi Meta untuk SEO
 
 1. Buka index.html.
 
@@ -99,7 +99,7 @@ Nama ini muncul di tab browser dan berpengaruh pada SEO.
 
 ---
 
-### 2.4 Mengubah Tautan Media Sosial atau Kontak
+2.4 Mengubah Tautan Media Sosial atau Kontak
 
 Contoh sebelum:
 
