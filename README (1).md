@@ -1,5 +1,7 @@
 # Panduan Kustomisasi Proyek Web Anda
 
+FinPro - https://g.co/gemini/share/24d8e133ee1a
+
 Dokumen ini memberikan petunjuk langkah demi langkah untuk melakukan kustomisasi dasar seperti mengganti nama aplikasi web, detail kredit/hak cipta, favicon, dan deskripsi meta untuk SEO.
 
 ---
